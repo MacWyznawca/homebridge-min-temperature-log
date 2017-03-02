@@ -36,10 +36,9 @@ module.exports = function(homebridge) {
 function convertDateUTCDtoLocalStr(date, timeOffset) {
 	date = new Date(date);
 	var localOffset;
-	if(timeOffset != 0){
+	if (timeOffset != 0) {
 		localOffset = timeOffset * 60000;
-	}
-	else {
+	} else {
 		localOffset = date.getTimezoneOffset() * 60000;
 	}
 	var localTime = date.getTime();
@@ -57,7 +56,7 @@ function MinTemperatureLogAccessory(log, config) {
 	this.model = config["model"] || "24h min. temp.";
 	this.serialNumberMAC = config["serialNumberMAC"] || "";
 	this.timeOffset = parseInt(config["timeOffset"]) || 0;
-	this.freq = (config["freq"] || 5) * 60000 ;
+	this.freq = (config["freq"] || 5) * 60000;
 
 	this.topic = config["topic"];
 
@@ -81,7 +80,7 @@ function MinTemperatureLogAccessory(log, config) {
 	this.service.addOptionalCharacteristic(Characteristic.StatusActive);
 	this.service.addOptionalCharacteristic(Characteristic.StatusFault);
 
-	this.temperature = -40.0;
+	this.temperature = -49.9;
 	this.activeStat = true;
 	this.faultStat = false;
 	this.dateTime = "";
@@ -110,20 +109,23 @@ function MinTemperatureLogAccessory(log, config) {
 		.getCharacteristic(Characteristic.StatusFault)
 		.on("get", this.getStatusFault.bind(this));
 
-	    this.Timestamp = function() {
-	        Characteristic.call(this, 'Timestamp', 'FF000001-0000-1000-8000-135D67EC4377');
-	        this.setProps({
-	          format: Characteristic.Formats.STRING,
-	          perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
-	        });
-	        this.value = this.getDefaultValue();
-	    };
-	    inherits(this.Timestamp, Characteristic);
-		this.service.addOptionalCharacteristic(this.Timestamp);
-	
-		this.service
-			.getCharacteristic(this.Timestamp)
-			.on('get', this.getTimestamp.bind(this));
+	this.Timestamp = function() {
+		Characteristic.call(this, 'Timestamp', 'FF000001-0000-1000-8000-135D67EC4377');
+		this.setProps({
+			format: Characteristic.Formats.STRING,
+			perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
+		});
+		this.value = this.getDefaultValue();
+	};
+	inherits(this.Timestamp, Characteristic);
+	this.service.addOptionalCharacteristic(this.Timestamp);
+
+	this.service
+		.getCharacteristic(this.Timestamp)
+		.on('get', this.getTimestamp.bind(this));
+		
+	// Initial data read and publish	
+	this.getState.bind(this);
 
 	this.getState.bind(this);
 	setInterval(() => {
@@ -148,16 +150,15 @@ MinTemperatureLogAccessory.prototype.getState = function(callback) {
 		this.activeStat = true;
 		minMaxTmp = data.split("\t");
 		this.temperature = parseFloat(minMaxTmp[1]);
-		if((new Date(minMaxTmp[0])).getTime()>0){
-			this.dateTime = convertDateUTCDtoLocalStr(new Date(minMaxTmp[0]),this.timeOffset);
+		if ((new Date(minMaxTmp[0])).getTime() > 0) {
+			this.dateTime = convertDateUTCDtoLocalStr(new Date(minMaxTmp[0]), this.timeOffset);
 			var date = (new Date(minMaxTmp[0])).getTime();
 			if ((new Date).getTime() - date > 90000000) {
 				this.faultStat = true;
 			} else {
 				this.faultStat = false;
 			}
-		}
-		else {
+		} else {
 			this.faultStat = true;
 		}
 	}

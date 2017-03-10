@@ -1,28 +1,4 @@
 // Minimum daily temperature Accessory plugin for HomeBridge for read min. temp from [homebridge-mqtt-temperature-log-tasmota]
-//
-// Remember to add accessory to config.json. Example:
-/* 	"accessories": [
-	{
-		"accessory": "min-temperature-log",
-
-		"name": "NAME OF THIS ACCESSORY",
-
-		"topic": "tele/sonoff/SENSOR",
-
-		"patchToRead":"/root/.homebridge/",
-
-		"timeOffset": "-60",
-
-		"freq": "10",
-
-		"manufacturer": "ITEAD",
-		"model": "Sonoff TH",
-		"serialNumberMAC": "MAC OR SERIAL NUMBER"
-
-	}]
-*/
-// When you attempt to add a device, it will ask for a "PIN code".
-// The default code for all HomeBridge accessories is 031-45-154.
 
 var inherits = require('util').inherits;
 var Service, Characteristic;
@@ -33,14 +9,8 @@ module.exports = function(homebridge) {
 	homebridge.registerAccessory("homebridge-min-temperature-log", "min-temperature-log", MinTemperatureLogAccessory);
 }
 
-function convertDateUTCDtoLocalStr(date, timeOffset) {
-	date = new Date(date);
-	var localOffset;
-	if (timeOffset != 0) {
-		localOffset = timeOffset * 60000;
-	} else {
-		localOffset = date.getTimezoneOffset() * 60000;
-	}
+function convertDateUTCDtoLocalStr(date) {
+	var localOffset = date.getTimezoneOffset() * 60000;
 	var localTime = date.getTime();
 	date = localTime - localOffset;
 	date = (new Date(date)).toISOString().replace(/T/, ' ').replace(/\..+/, '');
@@ -55,7 +25,6 @@ function MinTemperatureLogAccessory(log, config) {
 	this.manufacturer = config["manufacturer"] || "MacWyznawca";
 	this.model = config["model"] || "24h min. temp.";
 	this.serialNumberMAC = config["serialNumberMAC"] || "";
-	this.timeOffset = parseInt(config["timeOffset"]) || 0;
 	this.freq = (config["freq"] || 5) * 60000;
 
 	this.topic = config["topic"];
@@ -125,9 +94,10 @@ function MinTemperatureLogAccessory(log, config) {
 		.on('get', this.getTimestamp.bind(this));
 		
 	// Initial data read and publish	
-	this.getState.bind(this);
+	this.service.setCharacteristic(this.Timestamp, this.dateTime);
+	this.service.setCharacteristic(Characteristic.StatusActive, this.activeStat);
+	this.service.setCharacteristic(Characteristic.StatusFault, this.faultStat);
 
-	this.getState.bind(this);
 	setInterval(() => {
 		this.getState.bind(this);
 	}, this.freq);
@@ -141,7 +111,7 @@ MinTemperatureLogAccessory.prototype.getState = function(callback) {
 		var data = this.fs.readFileSync(this.patchToRead + this.filename + "_minTemp.txt", 'utf8');
 	} catch (err) {
 		this.log(err)
-		his.activeStat = false;
+		this.activeStat = false;
 	}
 	if (!data) {
 		this.log("Problem read min. temp. file");
@@ -151,7 +121,7 @@ MinTemperatureLogAccessory.prototype.getState = function(callback) {
 		minMaxTmp = data.split("\t");
 		this.temperature = parseFloat(minMaxTmp[1]);
 		if ((new Date(minMaxTmp[0])).getTime() > 0) {
-			this.dateTime = convertDateUTCDtoLocalStr(new Date(minMaxTmp[0]), this.timeOffset);
+			this.dateTime = convertDateUTCDtoLocalStr(new Date(minMaxTmp[0]));
 			var date = (new Date(minMaxTmp[0])).getTime();
 			if ((new Date).getTime() - date > 90000000) {
 				this.faultStat = true;
